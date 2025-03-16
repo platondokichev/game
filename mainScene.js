@@ -7,16 +7,17 @@ export default class MainScene extends Phaser.Scene {
         this.player;
         this.enemyDirection = 'right';
         this.enemy2Direction = 'left';
-        this.enemy3Direction = 'left';
+        this.enemy3Direction = 'right';
         this.golemDirection = 'right';
         this.playerHealth = 100;
-        this.havepoison = false; // Исправлено: теперь это булевый тип
+        this.havepoison = false; 
         this.havesword = false;
         this.inventory = [];
         this.inventoryText;
 
         this.sword;
         this.poison;
+        this.poison2; // Добавлено для poison2
     }
 
     createHealthBar() {
@@ -53,17 +54,28 @@ export default class MainScene extends Phaser.Scene {
 
     restartGame() {
         this.playerHealth = 100;
+        if (this.backgroundMusic) {
+            this.backgroundMusic.stop();
+            this.backgroundMusic.destroy();
+        }
+        
+        this.havepoison = false;
+        this.inventory = [];
         this.scene.restart();
     }
 
     preload() {
+        this.load.spritesheet('poison2', '../../assets/poison2.png', {frameWidth: 39, frameHeight: 39});
+        this.load.audio('deadMusic', '../../assets/dead.mp3');
+        this.load.audio('backgroundMusic', '../../assets/music.mp3');
         this.load.image('sky', '../../assets/sky.png');
         this.load.image('ground', '../../assets/ground.png');
         this.load.image('platform', '../../assets/platform.png');
-        this.load.spritesheet('player', '../../assets/player/player.png', { frameWidth: 32, frameHeight: 32 });
+        this.load.image('border', '../../assets/border.jpg');
+        this.load.spritesheet('player', '../../assets/player/player.png', { frameWidth: 32, frameHeight: 34 });
         this.load.spritesheet('enemy', '../../assets/enemy/enemy.png', { frameWidth: 32, frameHeight: 34 });
         this.load.spritesheet('enemy2', '../../assets/enemy2/enemy2.png', { frameWidth: 32, frameHeight: 34 });
-        this.load.spritesheet('enemy3', '../../assets/enemy3/enemy3.png', { frameWidth: 64, frameHeight: 66 });
+        this.load.spritesheet('enemy3', '../../assets/enemy3/enemy3.png', { frameWidth: 128, frameHeight: 132 });
         this.load.spritesheet('sword', '../../assets/sword.png', { frameWidth: 20, frameHeight: 40 });
         this.load.spritesheet('house', '../../assets/house.png', { frameWidth: 150, frameHeight: 150 });
         this.load.spritesheet('poison', '../../assets/poison.png', { frameWidth: 39, frameHeight: 39 });
@@ -71,11 +83,21 @@ export default class MainScene extends Phaser.Scene {
 
     attackEnemy(player, enemy) {
         if (this.cursor.space.isDown) {
+            // Проверка, убивает ли игрок enemy2 без poison2
+            if (enemy.texture.key === 'enemy2' && !this.inventory.includes('poison2')) {
+                console.log("Нужен poison2, чтобы убить enemy2!"); // Сообщение, если нет poison2
+                return; // Прерываем выполнение метода
+            }
+
             enemy.disableBody(true, true);
+            this.deadMusic = this.sound.add('deadMusic');
+            this.deadMusic.play({ loop: false });
         }
     }
 
     create() {
+        this.backgroundMusic = this.sound.add('backgroundMusic');
+        this.backgroundMusic.play({ loop: true });
         this.anims.create({
             key: 'run',
             frames: this.anims.generateFrameNumbers('player', { start: 0, end: 7 }),
@@ -92,18 +114,22 @@ export default class MainScene extends Phaser.Scene {
 
         // Создание статической группы для земли
         this.ground = this.physics.add.staticGroup();
+        this.border = this.physics.add.staticGroup();
         this.ground.create(400, 600, 'ground');
+        this.border.create(479, 390, 'border');
+        this.border.create(700, 390, 'border');
+        this.border.create(840, 130, 'border');
+        this.border.create(960, 130, 'border');
 
         // Создание статической группы для платформ
         this.platforms = this.physics.add.staticGroup();
         this.platforms.create(350, 300, 'platform');
+        this.platforms.create(380, 300, 'platform');
         this.platforms.create(210, 200, 'platform');
-        this.platforms.create(440, 410, 'platform');
+        this.platforms.create(540, 410, 'platform');
+        this.platforms.create(640, 410, 'platform');
         this.platforms.create(600, 240, 'platform');
         this.platforms.create(900, 150, 'platform');
-        this.platforms.create(1030, 120, 'platform');
-        this.platforms.create(770, 120, 'platform');
-        this.platforms.create(900, 70, 'platform');
 
         // Создание игрока
         this.player = this.physics.add.sprite(100, 450, 'player');
@@ -116,18 +142,23 @@ export default class MainScene extends Phaser.Scene {
         // Создание курсоров для управления
         this.cursor = this.input.keyboard.createCursorKeys();
 
-        this.poison = this.physics.add.sprite(450, 300, 'poison');
+        this.poison = this.physics.add.sprite(550, 300, 'poison');
         this.physics.add.collider(this.poison, this.ground);
 
         this.sword = this.physics.add.sprite(145, 100, 'sword');
         this.physics.add.collider(this.sword, this.ground);
         this.physics.add.collider(this.sword, this.platforms);
 
-        
         this.physics.add.collider(this.poison, this.platforms);
 
         this.physics.add.overlap(this.player, this.poison, this.collectItem, null, this);
         this.physics.add.overlap(this.player, this.sword, this.collectItem, null, this);
+
+        // Создание poison2
+        this.poison2 = this.physics.add.sprite(600, 200, 'poison2');
+        this.physics.add.collider(this.poison2, this.ground);
+        this.physics.add.collider(this.poison2, this.platforms);
+        this.physics.add.overlap(this.player, this.poison2, this.collectItem, null, this);
 
         this.inventoryText = this.add.text(10, 50, 'Inventory', {
             font: '16px Arial',
@@ -138,6 +169,8 @@ export default class MainScene extends Phaser.Scene {
         this.physics.add.collider(this.player, this.platforms);
         this.physics.add.collider(this.player, this.ground);
         this.physics.add.collider(this.player, this.house);
+        this.physics.add.collider(this.player, this.border);
+
         this.anims.create({
             key: 'runEnemy',
             frames: this.anims.generateFrameNumbers('enemy', { start: 0, end: 7 }),
@@ -175,14 +208,17 @@ export default class MainScene extends Phaser.Scene {
         this.enemy.setCollideWorldBounds(true);
         this.enemy.setBounce(0.2);
         this.physics.add.collider(this.enemy, this.platforms);
+        this.physics.add.collider(this.enemy, this.border);
         this.physics.add.collider(this.enemy, this.ground);
         this.enemy2.setCollideWorldBounds(true);
         this.enemy2.setBounce(0.2);
         this.physics.add.collider(this.enemy2, this.platforms);
+        this.physics.add.collider(this.enemy2, this.border);
         this.physics.add.collider(this.enemy2, this.ground);
         this.enemy3.setCollideWorldBounds(true);
         this.enemy3.setBounce(0.2);
         this.physics.add.collider(this.enemy3, this.platforms);
+        this.physics.add.collider(this.enemy3, this.border);
         this.physics.add.collider(this.enemy3, this.ground);
         this.createHealthBar();
 
@@ -201,16 +237,21 @@ export default class MainScene extends Phaser.Scene {
     collectItem(player, item) {
         item.disableBody(true, true);
         this.inventory.push(item.texture.key);
-        console.log(this.inventory)
+        console.log(this.inventory);
+        
         if (item.texture.key === 'poison') {
-            this.havepoison = true; // Установите флаг при получении яда
+            this.havepoison = true;
         }
         if (item.texture.key === 'sword') {
-            this.havesword = true; // Установите флаг при получении яда
+            this.havesword = true;
         }
+        if (item.texture.key === 'poison2') {
+            // Добавьте логику, если нужно
+        }
+        
         this.updateInventoryDisplay();  
     }
- 
+
     updateInventoryDisplay() {
         this.inventoryText.setText('Inventory');
 
@@ -220,6 +261,10 @@ export default class MainScene extends Phaser.Scene {
                 itemImage.setScale(1);
             }
             if (item === 'sword') {
+                const itemImage = this.add.image(110 + index * 40, 60, item);
+                itemImage.setScale(1);
+            }
+            if (item === 'poison2') {
                 const itemImage = this.add.image(120 + index * 40, 60, item);
                 itemImage.setScale(1);
             }
@@ -231,7 +276,6 @@ export default class MainScene extends Phaser.Scene {
         this.physics.add.overlap(this.player, this.enemy2, this.handleCollision.bind(this), null, this);
         this.physics.add.overlap(this.player, this.enemy3, this.handleCollision.bind(this), null, this);
         
-
         // Управление движением игрока
         if (this.cursor.left.isDown) {
             this.player.setVelocityX(-160);
@@ -261,23 +305,22 @@ export default class MainScene extends Phaser.Scene {
 
         // Прыжок игрока
         if (this.cursor.up.isDown && this.player.body.touching.down) {
-            const jumpVelocity = this.havepoison ? -370 : -260; // Увеличьте высоту прыжка, если есть яд
+            const jumpVelocity = this.havepoison ? -370 : -280;
             this.player.setVelocityY(jumpVelocity);
-            this.player.anims.play('jump'); // Воспроизведение анимации прыжка
+            this.player.anims.play('jump');
         } else if (this.player.body.touching.down) {
-            // Если игрок на земле, останавливаем анимацию прыжка
             if (this.player.anims.currentAnim && this.player.anims.currentAnim.key === 'jump') {
                 this.player.anims.stop('jump');
-                this.player.setTexture('player', 0); // Сброс текстуры, если нужно
+                this.player.setTexture('player', 0);
             }
         }
 
         if (this.enemyDirection === 'right') {
-            this.enemy.setVelocityX(80);
+            this.enemy.setVelocityX(160);
             this.enemy.flipX = false;
             this.enemy.anims.play('runEnemy', true); 
         } else if (this.enemyDirection === 'left') {
-            this.enemy.setVelocityX(-80);
+            this.enemy.setVelocityX(-160);
             this.enemy.flipX = true;
             this.enemy.anims.play('runEnemy', true);
         }
@@ -308,11 +351,11 @@ export default class MainScene extends Phaser.Scene {
         }
 
         if (this.enemy3Direction === 'right') {
-            this.enemy3.setVelocityX(80);
+            this.enemy3.setVelocityX(40);
             this.enemy3.flipX = false;
             this.enemy3.anims.play('runEnemy3', true); 
         } else if (this.enemy3Direction === 'left') {
-            this.enemy3.setVelocityX(-80);
+            this.enemy3.setVelocityX(-40);
             this.enemy3.flipX = true;
             this.enemy3.anims.play('runEnemy3', true);
         }
@@ -325,9 +368,9 @@ export default class MainScene extends Phaser.Scene {
 
         if (this.cursor.space.isDown) {
             this.player.anims.play('attack', true);
-            if (this.havesword){
+            if (this.havesword) {
                 this.sword.setVisible(true);
-                if (this.sword.flipX == true) {
+                if (this.sword.flipX === true) {
                     this.sword.setRotation(this.sword.rotation - 0.1);
                     const angle = this.sword.rotation;
                     if (angle > 2) {
